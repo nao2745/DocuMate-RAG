@@ -17,6 +17,7 @@ tests/
 htmlcov/
 .coverage
 *.lcov
+conftest.py
 
 # Build/Cache
 __pycache__
@@ -25,10 +26,13 @@ __pycache__
 .egg-info
 dist/
 build/
+*.egg-info/
 
 # Documentation
 docs/
 .docs/
+CLAUDE.md
+promo_video_plan.md
 
 # OS
 .DS_Store
@@ -52,6 +56,8 @@ frontend/
 # Remotion/video generation (not used in Vercel)
 remotion/
 node_modules/
+*.tsx
+*.ts
 
 # Local Vercel files
 .vercel/
@@ -59,3 +65,8 @@ node_modules/
 # Virtual environments
 venv/
 env/
+
+# Large Python packages to reduce bundle size
+site-packages/
+*.dist-info/
+
