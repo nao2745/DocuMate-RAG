@@ -1,5 +1,5 @@
 """
-Chat endpoints.
+Chat endpoints (Vercel-ready).
 
 POST /api/chat/query    – question → answer + sources (blocking)
 POST /api/chat/feedback – submit helpful/unhelpful rating
@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -25,7 +26,8 @@ from app.models.schemas import (
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 _pipeline = QueryPipeline()
 
-_FEEDBACK_PATH = Path("data/feedback.jsonl")
+# In-memory feedback cache (Vercel-friendly)
+_FEEDBACK_CACHE: list[dict[str, Any]] = []
 
 
 @router.post("/query", response_model=ChatResponse)
@@ -76,8 +78,17 @@ async def feedback(req: FeedbackRequest) -> FeedbackResponse:
     record = req.model_dump()
     record["recorded_at"] = datetime.now().isoformat()
 
-    _FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _FEEDBACK_PATH.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # Store in memory cache
+    _FEEDBACK_CACHE.append(record)
+
+    # Try to persist to file (may fail on Vercel, but that's OK)
+    try:
+        feedback_path = Path("data/feedback.jsonl")
+        feedback_path.parent.mkdir(parents=True, exist_ok=True)
+        with feedback_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        # Vercel or other read-only environments: silently skip file save
+        pass
 
     return FeedbackResponse(message="フィードバックを記録しました。ありがとうございます。")

@@ -1,5 +1,5 @@
 """
-High-level pipelines used by the API layer.
+High-level pipelines used by the API layer (Vercel-ready).
 
 IngestPipeline  – file → chunks → vector DB
 QueryPipeline   – question → retrieve → generate → sources
@@ -21,22 +21,41 @@ from app.core.retriever import HybridRetriever
 from app.core.vectorstore import VectorStoreManager
 from app.models.schemas import ChatResponse, DocumentMeta, Source
 
-# Simple JSON file as the document registry (no external DB needed for MVP)
-_REGISTRY_PATH = Path("data/document_registry.json")
+# In-memory registry cache (Vercel-friendly, no persistent file needed)
+_REGISTRY_CACHE: dict[str, Any] = {}
 
 
 def _load_registry() -> dict[str, Any]:
-    if _REGISTRY_PATH.exists():
-        return json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
-    return {}
+    """Load registry from cache or file if present."""
+    global _REGISTRY_CACHE
+    if not _REGISTRY_CACHE:
+        registry_path = Path("data/document_registry.json")
+        if registry_path.exists():
+            try:
+                _REGISTRY_CACHE = json.loads(
+                    registry_path.read_text(encoding="utf-8")
+                )
+            except Exception:
+                _REGISTRY_CACHE = {}
+    return _REGISTRY_CACHE
 
 
 def _save_registry(registry: dict[str, Any]) -> None:
-    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _REGISTRY_PATH.write_text(
-        json.dumps(registry, ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8",
-    )
+    """Save registry to cache and optionally to file."""
+    global _REGISTRY_CACHE
+    _REGISTRY_CACHE = registry
+    
+    # Try to save to file (may fail on Vercel, but that's OK)
+    try:
+        registry_path = Path("data/document_registry.json")
+        registry_path.parent.mkdir(parents=True, exist_ok=True)
+        registry_path.write_text(
+            json.dumps(registry, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+    except Exception:
+        # Vercel or other read-only environments: silently skip file save
+        pass
 
 
 class IngestPipeline:

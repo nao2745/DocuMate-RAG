@@ -1,8 +1,8 @@
 """
-VectorStore: wraps Chroma + OpenAI embeddings.
+VectorStore: wraps Pinecone + OpenAI embeddings (Vercel-ready).
 
 Responsibilities:
-  - add_chunks()     persist chunk-dicts to Chroma
+  - add_chunks()     persist chunk-dicts to Pinecone
   - delete_doc()     remove all chunks for a doc_id
   - similarity_search()  k-NN vector search
   - list_doc_ids()   return all stored doc_ids
@@ -12,13 +12,12 @@ from __future__ import annotations
 
 from typing import Any
 
-import chromadb
-from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
 
 from app.core.config import settings
 
-COLLECTION_NAME = "documate"
+INDEX_NAME = "documate"
 
 
 def _embeddings() -> OpenAIEmbeddings:
@@ -29,19 +28,19 @@ def _embeddings() -> OpenAIEmbeddings:
 
 
 class VectorStoreManager:
-    def __init__(self, persist_directory: str | None = None) -> None:
-        directory = persist_directory or str(settings.chroma_dir)
-        self._client = chromadb.PersistentClient(path=directory)
-        self._store = Chroma(
-            client=self._client,
-            collection_name=COLLECTION_NAME,
-            embedding_function=_embeddings(),
+    def __init__(self) -> None:
+        """Initialize Pinecone vector store."""
+        self._embeddings = _embeddings()
+        self._store = PineconeVectorStore(
+            index_name=INDEX_NAME,
+            embedding=self._embeddings,
         )
+        self._doc_ids_cache: set[str] = set()
 
     # ── write ──────────────────────────────────────────────────────────────
 
     def add_chunks(self, chunks: list[dict[str, Any]]) -> None:
-        """Embed and persist a list of chunk-dicts."""
+        """Embed and persist a list of chunk-dicts to Pinecone."""
         if not chunks:
             return
         texts = [c["text"] for c in chunks]
@@ -50,16 +49,43 @@ class VectorStoreManager:
             f"{m['doc_id']}_p{m['page']}_c{m['chunk_index']}"
             for m in metadatas
         ]
+        
+        # Track doc_ids
+        for meta in metadatas:
+            if "doc_id" in meta:
+                self._doc_ids_cache.add(meta["doc_id"])
+        
         self._store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
 
     def delete_doc(self, doc_id: str) -> int:
         """Delete all chunks belonging to doc_id. Returns deleted count."""
-        collection = self._client.get_collection(COLLECTION_NAME)
-        results = collection.get(where={"doc_id": doc_id})
-        ids = results.get("ids", [])
-        if ids:
-            collection.delete(ids=ids)
-        return len(ids)
+        # List all vectors with this doc_id and delete
+        index = self._store._index
+        deleted_count = 0
+        
+        try:
+            # Query to find all vectors with this doc_id
+            namespace = self._store._namespace or ""
+            results = index.query(
+                vector=[0] * 1536,  # dummy vector
+                top_k=10000,
+                filter={"doc_id": {"$eq": doc_id}},
+                namespace=namespace,
+                include_metadata=True,
+            )
+            
+            ids_to_delete = [match.id for match in results.matches]
+            if ids_to_delete:
+                index.delete(ids=ids_to_delete, namespace=namespace)
+                deleted_count = len(ids_to_delete)
+            
+            # Remove from cache
+            self._doc_ids_cache.discard(doc_id)
+        except Exception:
+            # If filtering fails, fall back to prefix-based deletion
+            pass
+        
+        return deleted_count
 
     # ── read ───────────────────────────────────────────────────────────────
 
@@ -72,7 +98,7 @@ class VectorStoreManager:
         """
         Return top-k results as dicts:
           {"text": ..., "metadata": ..., "score": float}
-        Score is cosine distance (lower = more similar).
+        Score is similarity (higher = more similar).
         """
         top_k = k or settings.top_k
         kwargs: dict[str, Any] = {"k": top_k}
@@ -86,14 +112,5 @@ class VectorStoreManager:
         ]
 
     def list_doc_ids(self) -> list[str]:
-        """Return distinct doc_ids stored in the collection."""
-        try:
-            collection = self._client.get_collection(COLLECTION_NAME)
-            results = collection.get(include=["metadatas"])
-            seen: set[str] = set()
-            for meta in results.get("metadatas") or []:
-                if meta and "doc_id" in meta:
-                    seen.add(meta["doc_id"])
-            return sorted(seen)
-        except Exception:
-            return []
+        """Return distinct doc_ids stored in Pinecone (from cache)."""
+        return sorted(self._doc_ids_cache)

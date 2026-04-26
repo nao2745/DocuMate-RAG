@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # API Keys
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    pinecone_api_key: str = ""
 
     # LLM
     llm_provider: str = "anthropic"  # "anthropic" or "openai"

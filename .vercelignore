@@ -1,0 +1,61 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Development
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+tests/
+htmlcov/
+.coverage
+*.lcov
+
+# Build/Cache
+__pycache__
+*.pyc
+*.pyo
+.egg-info
+dist/
+build/
+
+# Documentation
+docs/
+.docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large files (use external storage in production)
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Chroma DB (use Pinecone instead)
+chroma_db/
+
+# Temp files
+*.tmp
+temp/
+
+# Streamlit (not used in Vercel)
+frontend/
+.streamlit/
+
+# Remotion/video generation (not used in Vercel)
+remotion/
+node_modules/
+
+# Local Vercel files
+.vercel/
+
+# Virtual environments
+venv/
+env/
