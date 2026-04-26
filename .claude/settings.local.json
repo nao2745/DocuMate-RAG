@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(python -m pytest tests/test_chunker.py -v --tb=short)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(python -c \"import pytest; print\\(pytest.__version__\\)\")",
+      "Bash(where python:*)",
+      "Bash(where.exe python:*)",
+      "Bash(where.exe python3:*)",
+      "Bash(where.exe py:*)",
+      "Bash(/c/Users/tona3/AppData/Local/Programs/Python/Python312/python.exe:*)",
+      "Bash(vercel *)",
+      "Bash(py *)",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "Bash(curl -s http://localhost:8501)",
+      "Bash(curl *)",
+      "Bash(pkill -f uvicorn)",
+      "Bash(npm --version)",
+      "Bash(mkdir -p \"/c/ClaudeCode/社内ドキュメントQ&Aアプリ/remotion/out\")",
+      "Bash(npm install *)",
+      "Bash(npx remotion *)",
+      "Bash(node node_modules/@remotion/cli/remotion-cli.js studio)"
+    ]
+  }
+}
